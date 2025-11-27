@@ -51,7 +51,7 @@ void insert_records(const TableSchema schema,
 
   // Create and open B+ tree file
   bplus_create_file(&schema, file_name);
-
+    
   int file_desc;
   BPlusMeta* info;
   bplus_open_file(file_name, &file_desc, &info);
