@@ -32,7 +32,7 @@ int bplus_create_file(const TableSchema *schema, const char *fileName)
   header->schema = *schema;
   header->depth = 0;
   header->root_id = -1;
-  header->record_size = MAX_ATTRIBUTES * MAX_STRING_LENGTH;
+  header->record_size = sizeof(Record);
   header->record_capacity_per_block = BF_BLOCK_SIZE/header->record_size;
   header->pointers_per_block = (BF_BLOCK_SIZE-sizeof(int))/(2 * sizeof(int)) + 1;
   header->keys_per_block = header->pointers_per_block -1;
@@ -76,8 +76,75 @@ int bplus_close_file(const int file_desc, BPlusMeta* metadata)
   return 0;
 }
 
-int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *record)
-{
+void insert_in_block(dataNode *node, const Record *record, int target);
+void insert_in_full_block();
+
+int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *record){
+
+  BF_Block *block;
+  BF_Block_Init(&block);
+
+  if (metadata->depth == 0){
+
+  }else{
+
+    int root_index = metadata->root_id;
+    for (int depth = 1; depth <= metadata->depth; depth++){
+
+      CALL_BF(BF_GetBlock(file_desc, root_index, block));
+      indexNode* node = BF_Block_GetData(block);
+
+      // the block contains an int in the 4 first bytes which is the 
+      // count of pointers to other blocks, in the block
+      int pointer_count = node->pointer_counter;
+      for (int block_index = 2; block_index < 2*pointer_count; block_index += 2){
+
+        int curr_key = node->pointer_key_array[block_index];
+
+        if (record_get_key(&(metadata->schema), record) < curr_key){
+
+          root_index = node->pointer_key_array[block_index - 1];
+          break;
+                  // if we reach last block
+        }else if( (block_index == 2*(pointer_count - 1)) ||
+                  (record_get_key(&metadata->schema, record) < node->pointer_key_array[block_index + 2]) ){ 
+          root_index = node->pointer_key_array[block_index + 1];
+          break;
+        }
+
+      }
+      CALL_BF(BF_UnpinBlock(block));
+    }
+
+    // thats the only block that could contain the record
+    // that has to be inserted (so it wont be inserted)
+    // or the block in which we will insert the record.
+
+    CALL_BF(BF_GetBlock(file_desc, root_index, block));
+    dataNode* node = BF_Block_GetData(block);
+
+    int record_count = node->number_of_records;
+    
+    for (int i = 0; i < record_count; i++){
+      if (record_get_key(&(metadata->schema), record) == record_get_key(&(metadata->schema), &(node->rec_array[i]))){
+        record_print(&(metadata->schema), record);
+        printf("Already exists! Was not inserted.\n");
+        return -1;
+      } else if (record_get_key(&(metadata->schema), record) < record_get_key(&(metadata->schema), &(node->rec_array[i]))){
+        
+        if(record_count == BF_BLOCK_SIZE/sizeof(Record)){
+          // insert_in_full_block();
+        }else{
+          // insert_in_block();
+        }
+
+      }
+    }
+    
+
+
+  }
+
   return -1;
 }
 
@@ -125,7 +192,7 @@ int bplus_record_find(const int file_desc, const BPlusMeta *metadata, const int 
 
   for(int i = 0 ; i < record_count; i++)
   {
-    if(node->rec_array[i].values[0].int_value == key)
+    if(record_get_key(&(metadata)->schema, &(node->rec_array[i])) == key)
     {
       **out_record = node->rec_array[i];
       CALL_BF(BF_UnpinBlock(block));
