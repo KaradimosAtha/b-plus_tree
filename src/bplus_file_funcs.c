@@ -92,7 +92,7 @@ int bplus_close_file(const int file_desc, BPlusMeta* metadata)
   return 0;
 }
 
-int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record *record , int* traceroute , int data_block , int target);
+int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record *record , int* traceroute , BF_Block * block , int target);
 
 int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *record){
 
@@ -198,7 +198,7 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
         found = 1;
         if(record_count == BF_BLOCK_SIZE/sizeof(Record))
         {
-          if(!insert_in_full_block( file_desc, metadata, record , traceroute , root_index , i))
+          if(!insert_in_full_block(file_desc, metadata, record , traceroute , block , i))
           {
             return 0;
           }
@@ -287,9 +287,37 @@ int bplus_record_find(const int file_desc, const BPlusMeta *metadata, const int 
 
 
 
-int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record *record, int* traceroute , int data_block , int target)
+int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record *record, int* traceroute , BF_Block * block, int target)
 {
+  int num_of_blocks;
+  dataNode* node = BF_Block_GetData(block);
 
+  BF_Block * new_block ; 
+  BF_Block_Init(&new_block);
+  CALL_BF(BF_AllocateBlock(file_desc, new_block));
+  dataNode* data = BF_Block_GetData(new_block);
+
+  CALL_BF(BF_GetBlockCounter(file_desc ,&num_of_blocks ));
+
+  data->next_data_block = node->next_data_block;
+  node->next_data_block = num_of_blocks-1 ;
+
+  Record record_array[6];
+
+  for(int i= 0 ; i < target; i++){
+    record_array[i] = node->rec_array[i];
+  }
+  record_array[target] = *record;
+  for(int i = target + 1 ; i <6 ; i++){
+    record_array[i] = node->rec_array[i-1];
+  }
+
+  node->number_of_records = data->number_of_records = 3 ; 
+
+  for(int i = 0 ; i<3 ; i++){
+    node->rec_array[i] = record_array[i];
+    data->rec_array[i] = record_array[i+3];
+  }
   
   return -1;
 }
