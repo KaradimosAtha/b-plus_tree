@@ -94,6 +94,8 @@ int bplus_close_file(const int file_desc, BPlusMeta* metadata)
 
 int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record *record , int* traceroute , BF_Block * block , int target);
 
+
+
 int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *record){
 
   BF_Block *block;
@@ -331,10 +333,13 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
   BF_Block_Init(&parent_block);
   CALL_BF(BF_GetBlock(file_desc, parent_index, parent_block));
   indexNode* parent = BF_Block_GetData(parent_block);
-  
+  // for(){
+
   if(parent->pointer_counter == 64 ) // <---------------- change this 
   {
+    int new_key_to_above = parent->pointer_counter - 1;
 
+    insert_in_full_index_block( parent , key_to_above , new_block_position, );  //<----------------add argument to return new index block
   }
   else
   {
@@ -342,6 +347,7 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
     block_routine(parent_block, 1, 1, 1);
     // break;
   }
+  // }
 
 
   return -1;

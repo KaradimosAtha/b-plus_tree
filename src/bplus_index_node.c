@@ -51,3 +51,12 @@ void insert_in_index_block(indexNode *node, int key , int pointer){
     node->pointer_counter++;
 
 }
+
+
+void insert_in_full_index_block(indexNode *node, int key , int pointer, int *new_block_pos)
+{
+
+        
+
+
+}
