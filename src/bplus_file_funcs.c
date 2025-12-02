@@ -206,6 +206,7 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
         }
         else
         {
+          printf("The target is %d \n" , i);
           insert_in_data_block(node,record,i);
           printf("Record inserted succesfully!\n");
           block_routine(block , 1 , 1 , 1);
@@ -216,6 +217,12 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
 
     if ( !found )
     {
+      // printf("The target is %d \n" , record_count);
+      if(record_count == BF_BLOCK_SIZE/sizeof(Record))
+      {
+        return insert_in_full_block(file_desc, metadata, record , traceroute , block , record_count);
+      }
+
       insert_in_data_block(node , record, record_count);
       block_routine(block , 1, 1 ,1);
       return root_index;
