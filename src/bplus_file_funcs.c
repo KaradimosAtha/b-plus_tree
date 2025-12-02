@@ -327,27 +327,67 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
   block_routine(block , 1,1,1);
   block_routine( new_block ,1,1,1);
 
-  int parent_index = traceroute[metadata->depth];
+
 
   BF_Block * parent_block ; 
   BF_Block_Init(&parent_block);
-  CALL_BF(BF_GetBlock(file_desc, parent_index, parent_block));
-  indexNode* parent = BF_Block_GetData(parent_block);
-  // for(){
 
-  if(parent->pointer_counter == 64 ) // <---------------- change this 
-  {
-    int new_key_to_above = parent->pointer_counter - 1;
+  int parent_index ;
 
-    insert_in_full_index_block( parent , key_to_above , new_block_position, );  //<----------------add argument to return new index block
+  for(int i = metadata->depth ; i >= 0; i--){
+    parent_index = traceroute[ i ];
+    CALL_BF(BF_GetBlock(file_desc, parent_index, parent_block));
+    indexNode* parent = BF_Block_GetData(parent_block);
+    if ( i )
+    {
+        if(parent->pointer_counter == 64 ) // <---------------- change this 
+        {
+          int new_key_to_above = parent->pointer_key_array[parent->pointer_counter - 1];  // 63
+
+          BF_Block* new_index_block;
+
+          BF_Block_Init(&new_index_block);
+          CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
+          indexNode* new_index_block_node = BF_Block_GetData(new_index_block);
+
+          int pointer_counter_of_old_index_block = new_key_to_above / 2  + 1 ;  // 32
+
+          parent->pointer_counter = pointer_counter_of_old_index_block;
+
+          new_index_block_node->pointer_counter = pointer_counter_of_old_index_block ;
+
+          for( int i = 0; i < 63; i++)
+          {
+            new_index_block_node->pointer_key_array[i] = parent->pointer_key_array[ i + 64 ];
+          }
+
+
+          if ( key_to_above < parent->pointer_key_array[new_key_to_above])
+          {
+            insert_in_index_block( parent , key_to_above , new_block_position);
+          }
+          else
+          {
+            insert_in_index_block(  new_index_block_node , key_to_above , new_block_position);
+          }
+
+          key_to_above = new_key_to_above;
+          new_block_position++;
+
+          // insert_in_full_index_block( parent , key_to_above , new_block_position, );  //<----------------add argument to return new index block
+        }
+        else
+        {
+          insert_in_index_block(parent, key_to_above, new_block_position);
+          block_routine(parent_block, 1, 1, 1);
+          // break;
+        }
+    }
+    else
+    {
+
+    }
   }
-  else
-  {
-    insert_in_index_block(parent, key_to_above, new_block_position);
-    block_routine(parent_block, 1, 1, 1);
-    // break;
-  }
-  // }
 
 
   return -1;
