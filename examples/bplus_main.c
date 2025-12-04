@@ -5,7 +5,7 @@
 #include "bplus_file_funcs.h"
 #include "record_generator.h"
 
-#define RECORDS_NUM 2000 // Number of random records to insert & search
+#define RECORDS_NUM 1000 // Number of random records to insert & search
 
 // Macro to handle BF library errors
 #define CALL_OR_DIE(call)     \

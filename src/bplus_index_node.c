@@ -21,6 +21,8 @@ void print_index_node(indexNode * node)
 }
 
 void insert_in_index_block(indexNode *node, int key , int pointer){
+
+    
     // target is the array position where the key-pointer couple will be put
     int target = 2*node->pointer_counter - 1; // in case it is not meant to be put somewhere between the existing items of the array it should be put at the end of the data of the array
 
@@ -52,12 +54,3 @@ void insert_in_index_block(indexNode *node, int key , int pointer){
     node->pointer_counter++;
 
 }
-
-
-// void insert_in_full_index_block(indexNode *node, int key , int pointer, int *new_block_pos)
-// {
-
-        
-
-
-// }

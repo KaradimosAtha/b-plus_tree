@@ -98,7 +98,20 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
 
   BF_Block *block;
   BF_Block_Init(&block);
-  
+  printf("Depth of tree is %d\n" , metadata->depth);
+  // BF_Block *temp;
+  // BF_Block_Init(&temp);
+  // if(metadata->depth != -1)
+  // {
+  //   CALL_BF(BF_GetBlock(file_desc , metadata->root_id , temp));
+
+
+  //   indexNode* temp_root = (indexNode *)BF_Block_GetData(temp);
+
+  //   printf("Pointer counter of root is %d and root id is %d\n" , temp_root->pointer_counter , metadata->root_id);
+  // }
+
+
   if (metadata->depth == -1)
   {
       BF_Block *block;
@@ -376,7 +389,7 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
         CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
         indexNode* new_index_block_node = (indexNode *)BF_Block_GetData(new_index_block);
 
-        int pointer_counter_of_old_index_block = new_key_to_above / 2  + 1 ;  // 32
+        int pointer_counter_of_old_index_block = parent->pointer_counter/2  ;  // 32
 
         parent->pointer_counter = pointer_counter_of_old_index_block;
 
@@ -388,7 +401,7 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
         }
 
 
-        if ( key_to_above < parent->pointer_key_array[new_key_to_above])
+        if ( key_to_above < new_key_to_above)
         {
           insert_in_index_block( parent , key_to_above , new_block_position);
         }
@@ -408,18 +421,20 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
       {
 
         int new_key_to_above = parent->pointer_key_array[parent->pointer_counter - 1];  // 63
-
+        printf("The DATO to be inserted is %d \n" , new_key_to_above );
         BF_Block* new_index_block;
 
         BF_Block_Init(&new_index_block);
         CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
+        
         indexNode* new_index_block_node = (indexNode *)BF_Block_GetData(new_index_block);
 
-        int pointer_counter_of_old_index_block = new_key_to_above / 2  + 1 ;  // 32
+        int pointer_counter_of_old_index_block = parent->pointer_counter/2  ;  // 32
+        printf("Pointer counter of old index block is %d \n " , pointer_counter_of_old_index_block);
 
-        parent->pointer_counter = pointer_counter_of_old_index_block;
+        parent->pointer_counter = pointer_counter_of_old_index_block; //32
 
-        new_index_block_node->pointer_counter = pointer_counter_of_old_index_block ;
+        new_index_block_node->pointer_counter = pointer_counter_of_old_index_block ; //32
 
         for( int i = 0; i < 63; i++)
         {
@@ -427,7 +442,7 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
         }
 
 
-        if ( key_to_above < parent->pointer_key_array[new_key_to_above])
+        if ( key_to_above < new_key_to_above )
         {
           insert_in_index_block( parent , key_to_above , new_block_position);
         }
@@ -435,7 +450,7 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
         {
           insert_in_index_block(  new_index_block_node , key_to_above , new_block_position);
         }
-
+        // printf("Tralalero trallala\n");
         block_routine(new_index_block, 1, 1, 0);
 
         CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
@@ -445,10 +460,24 @@ int insert_in_full_block(const int file_desc, BPlusMeta *metadata, const Record 
         new_root->pointer_key_array[1] = new_key_to_above;
         new_root->pointer_key_array[2] = ++new_block_position;
         metadata->root_id = ++new_block_position;
+        metadata->depth++;
 
         block_routine(parent_block, 1, 1, 1);
         block_routine(new_index_block, 1, 1, 1);
-        
+  //         BF_Block *temp;
+  // BF_Block_Init(&temp);
+   
+  //             CALL_BF(BF_GetBlock(file_desc , metadata->root_id , temp));
+
+
+  //             indexNode* temp_root = (indexNode *)BF_Block_GetData(temp);
+  //             printf("NEw roooooot\n");
+  //             printf("Pointer counter of root is %d and root id is %d\n" , temp_root->pointer_counter , metadata->root_id);
+  //             int foo;
+  //             CALL_BF(BF_GetBlockCounter(file_desc , &foo));
+  //             printf("We have %d blocks\n" , foo);
+
+
       }
     
     }
