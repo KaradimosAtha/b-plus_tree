@@ -67,7 +67,7 @@ void insert_records(const TableSchema schema,
     record_print(&schema, &record);
 
     bplus_record_insert(file_desc, info, &record);
-    printf("------------------\n");
+    // printf("------------------\n");
   }
 
   // Clean up
@@ -96,6 +96,7 @@ void search_records(const TableSchema schema,
   for (int i = 0; i < 2; i++) {
     bplus_record_find(file_desc, info, keys[i], &result);
     if (result != NULL) {
+      printf("The result of the search is :");
       record_print(&schema, result);
     } else {
       printf("No such record\n");
