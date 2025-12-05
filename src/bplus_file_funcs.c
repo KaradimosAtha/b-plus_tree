@@ -242,20 +242,24 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
   return -1;
 }
 
+
+// in this function we implement how the search in the B+ tree is done
+// it returns the record in case it exists otherwise it prints an error message and returns error code -1
 int bplus_record_find(const int file_desc, const BPlusMeta *metadata, const int key, Record** out_record)
 {  
 
   BF_Block *block;
   BF_Block_Init(&block);
 
+  // the iteration in the tree begins from the root and continues
+  // to its children, roots of smaller subtrees.
   int root_index = metadata->root_id;
   for (int depth = 0; depth < metadata->depth; depth++){
 
     CALL_BF(BF_GetBlock(file_desc, root_index, block));
     indexNode* node = (indexNode *)BF_Block_GetData(block);
 
-    // the block contains an int in the 4 first bytes which is the 
-    // count of pointers to other blocks, in the block
+    // we search the stored keys in the block so they can guide as deeper towards the data level
     int pointer_count = node->pointer_counter;
     for (int block_index = 1; block_index < 2*pointer_count - 1; block_index += 2){
 
@@ -276,9 +280,9 @@ int bplus_record_find(const int file_desc, const BPlusMeta *metadata, const int 
     block_routine(block, 0, 1, 0);
   }
 
-  // so after reaching the metadata_depth number we
-  // have reached the last level of index nodes.
-
+  // after the iteration the root_index will point to the data block 
+  // that might contain the record that is being searched
+  
   CALL_BF(BF_GetBlock(file_desc, root_index, block));
   dataNode* node = (dataNode *)BF_Block_GetData(block);
 
@@ -296,7 +300,7 @@ int bplus_record_find(const int file_desc, const BPlusMeta *metadata, const int 
 
   block_routine(block, 0, 1, 1);
 
-  *out_record=NULL;
+  *out_record=NULL; // search failed
   return -1;
 }
 
