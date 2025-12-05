@@ -5,7 +5,7 @@
 #include "bplus_file_funcs.h"
 #include "record_generator.h"
 
-#define RECORDS_NUM 1000 // Number of random records to insert & search
+#define RECORDS_NUM 1000000 // Number of random records to insert & search
 
 // Macro to handle BF library errors
 #define CALL_OR_DIE(call)     \
@@ -18,24 +18,24 @@
 }
 
 // Forward declarations
-void insert_records(TableSchema schema,
+int *insert_records(TableSchema schema,
                     void (*random_record)(const TableSchema *schema, Record *record),
                     char* file_name);
 
 void search_records(TableSchema schema,
                     void (*random_record)(const TableSchema *schema, Record *record),
-                    char* file_name);
+                    char* file_name, int *pick_id);
 
 int main() {
-  // ===== Employee test =====
-  const TableSchema employee_schema = employee_get_schema();
-  insert_records(employee_schema, employee_random_record, "employees.db");
-  search_records(employee_schema, employee_random_record, "employees.db");
+  // // ===== Employee test =====
+  // const TableSchema employee_schema = employee_get_schema();
+  // insert_records(employee_schema, employee_random_record, "employees.db");
+  // search_records(employee_schema, employee_random_record, "employees.db");
 
-  // // ===== Student test =====
-  // const TableSchema student_schema = student_get_schema();
-  // insert_records(student_schema, student_random_record, "students.db");
-  // search_records(student_schema, student_random_record, "students.db");
+  // ===== Student test =====
+  const TableSchema student_schema = student_get_schema();
+  int *pick_id = insert_records(student_schema, student_random_record, "students.db");
+  search_records(student_schema, student_random_record, "students.db", pick_id);
 
   return 0;
 }
@@ -43,7 +43,7 @@ int main() {
 /**
  * Inserts random records into a B+ tree file.
  */
-void insert_records(const TableSchema schema,
+int *insert_records(const TableSchema schema,
                     void (*random_record)(const TableSchema *schema, Record *record),
                     char* file_name)
 {
@@ -58,14 +58,15 @@ void insert_records(const TableSchema schema,
 
   Record record;
   srand(42); // Deterministic random sequence for reproducibility
-
+  int *pick_id = calloc(100, sizeof(int));
   // Insert random records
   for (int i = 0; i < RECORDS_NUM; i++) {
     random_record(&schema, &record);
 
     // printf("Insert value: %d\n", record_get_key(&schema, &record));
     // record_print(&schema, &record);
-
+    pick_id[record_get_key(&schema, &record)%100] = record_get_key(&schema, &record);
+    // printf("i: %d %d \n",i%100, pick_id[i%100]);
     bplus_record_insert(file_desc, info, &record);
     // printf("------------------\n");
   }
@@ -73,6 +74,7 @@ void insert_records(const TableSchema schema,
   // Clean up
   bplus_close_file(file_desc, info);
   BF_Close();
+  return pick_id;
 }
 
 /**
@@ -80,8 +82,9 @@ void insert_records(const TableSchema schema,
  */
 void search_records(const TableSchema schema,
                     void (*random_record)(const TableSchema *schema, Record *record),
-                    char* file_name)
+                    char* file_name, int *pick_id)
 {
+
   srand(42); // Same seed so the same random keys are searched
 
   BF_Init(LRU);
@@ -92,9 +95,9 @@ void search_records(const TableSchema schema,
 
   // Searching for the keys 151012 and 16448
   Record* result = malloc(sizeof(Record));
-  int keys[] = {173881, 198053};
-  for (int i = 0; i < 2; i++) {
-    bplus_record_find(file_desc, info, keys[i], &result);
+  // int keys[] = {173881, 198053};
+  for (int i = 0; i < 100; i++) {
+    bplus_record_find(file_desc, info, pick_id[i], &result);
     if (result != NULL) {
       printf("The result of the search is :");
       record_print(&schema, result);
