@@ -37,6 +37,20 @@ typedef struct bplus_index_node{
 }indexNode;
 ```
 
+Also for basic functionality we added a struct for the metadata stored in block #0 called ```BPlusMeta```
+
+```c
+typedef struct {
+    TableSchema schema;
+    int depth;                       // depth of tree !without! data blocks
+    int root_id;                     // the block_id of the root of the Bplus tree
+    int record_size;                 // the size of each record in bytes
+    int record_capacity_per_block;   // the number of records that fit in a datablock
+    int keys_per_block;              // the number of keys in an indexblock
+    int pointers_per_block;          // the number of pointers in an indexblock
+} BPlusMeta;
+```
+
 ## Helper Functions / Macros
 
 We have 2 helper functions each for printing the contents of data blocks and index blocks, here are the definitions of the functions:
@@ -281,4 +295,29 @@ node->number_of_records++;
 Here we want to insert the incoming record at the ```target``` position, so we just shift all the elements from ```target``` onwards one position to the right and place the new record at it's new position.
 
 - ```insert_in_full_data_block(const int file_desc, BPlusMeta *metadata, const Record *record , int* traceroute , BF_Block * block , int target)```
+
+
+When we want to insert into a full data block, it is certain that the original data block will be spllited into 2 and the new Record will be inserted into one of two. That action is perfomed with ```split_data_block```. which is pretty straighforward and any explanation if needed is in the comments.
+
+Now for the hard part we need to determine if we need to split any of the index nodes. In order to determine that we need to iterate the index nodes like this from the ground up: ```for(int i = metadata->depth ; i > 0; i--) ``` , in each iteration we find the parent index block that is pointing to an overflowed record/index block.
+
+```c
+// start from the end where the parent of the data block we reached is stored
+parent_index = traceroute[i];
+CALL_BF(BF_GetBlock(file_desc, parent_index, parent_block));
+parent = (indexNode *)BF_Block_GetData(parent_block);
+```
+
+Once we have gotten there we just got to insert a key-pointer pair inside of the parent block. Again we have 2 cases here:
+
+- Parent block is not full so we just insert the key-pointer pair in it with the call of ```insert_in_index_block(parent, key_to_above, new_block_position)```
+- ```parent->pointer_counter == metadata->pointers_per_block ``` which means the parent block is full, which again leads us to 2 cases:
+  1.  ```i==0``` which means we reached root-level and need to perform special actions  like splitting the root with ```split_index_block``` and creating a new one which points to the now splitted-ex root
+  2.  ```i!=0``` which means we split the index block with ```split_index_block``` and  update the key-pointer pair that needs to be sent one level above
+   
+Finally, lets analyze a few things about the function ```split_index_block```. which is crucial for the bubble-up of our tree.
+
+- We select the key element placed at the middle of the ```pointer_key_array```
+- We split the key-pointer pairs between the existing and the new index block equally
+- We insert the desired key-pair in the correct of the 2 index blocks based on it's comparison with the median key we chose earlier
 

@@ -91,7 +91,7 @@ int split_data_block(int file_desc, BF_Block *block, int *count, const Record *r
     node->next_data_block = --(*count);
 
     // temporary array to help with record splitting
-    Record record_array[6];
+    Record record_array[ metadata->record_capacity_per_block + 1 ];
 
     for(int i = 0 ; i < target; i++)
     {
