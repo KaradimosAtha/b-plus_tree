@@ -1,5 +1,6 @@
 // Μπορείτε να προσθέσετε εδώ βοηθητικές συναρτήσεις για την επεξεργασία Κόμβων Δεδομένων.
 #include "bplus_index_node.h"
+#include "bplus_file_structs.h"
 #include <stdio.h>
 
 void print_index_node(indexNode * node)
@@ -20,7 +21,8 @@ void print_index_node(indexNode * node)
     }
 }
 
-void insert_in_index_block(indexNode *node, int key , int pointer){
+void insert_in_index_block(indexNode *node, int key , int pointer)
+{
 
     
     // target is the array position where the key-pointer couple will be put
@@ -52,5 +54,47 @@ void insert_in_index_block(indexNode *node, int key , int pointer){
     node->pointer_key_array[target] = key;
     node->pointer_key_array[target + 1] = pointer;
     node->pointer_counter++;
+
+}
+
+// this function helps splitting an index block and returns the key 
+// that will be inserted to the higher level index block
+int split_index_block(int file_desc, BPlusMeta *metadata, indexNode *parent_node, int key, int new_block_position)
+{
+
+    // the key that will be inserted in the higher level index block is in the middle of the current
+    int new_key_to_above = parent_node->pointer_key_array[parent_node->pointer_counter - 1]; 
+
+    BF_Block* new_index_block;
+
+    BF_Block_Init(&new_index_block);
+    CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
+    indexNode* new_index_block_node = (indexNode *)BF_Block_GetData(new_index_block);
+
+    // pointers to lower level are equally distributed in half
+    parent_node->pointer_counter /= 2;
+    new_index_block_node->pointer_counter = parent_node->pointer_counter ;
+
+    // take the right half, after the middle key and copy it to the new index block
+    // since index block is full is has metadata->pointers_per_block = 64 pointers and 
+    // metadata->keys_per_block = 63 keys, which are the middle positions in the block
+    for( int i = 0; i < metadata->keys_per_block; i++)
+    {
+        new_index_block_node->pointer_key_array[i] = parent_node->pointer_key_array[ i + metadata->pointers_per_block ];
+    }
+
+    // now insert the key to the old or the new index block, according to its value
+    if (key < new_key_to_above)
+    {
+        insert_in_index_block(parent_node, key, new_block_position);
+    }
+    else
+    {
+        insert_in_index_block(new_index_block_node, key, new_block_position);
+    }
+
+    block_routine(new_index_block, 1, 1, 1);
+
+    return new_key_to_above;
 
 }

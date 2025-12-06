@@ -72,154 +72,122 @@ int first_insert_in_tree(int file_desc, BPlusMeta *metadata, const Record *recor
 
 }
 
-int insert_in_full_data_block(const int file_desc, BPlusMeta *metadata, const Record *record , int* traceroute , BF_Block * block , int target)
+// this helper function splits the (full) data block given, inserts the record and 
+// returns the key that will be inserted to the parent index block 
+int split_data_block(int file_desc, BF_Block *block, int *count, const Record *record, int target, BPlusMeta *metadata)
 {
-    dataNode* node = (dataNode *)BF_Block_GetData(block);
+    dataNode *node = (dataNode *)BF_Block_GetData(block);
 
-    BF_Block * new_block ; 
+    BF_Block *new_block ;
     BF_Block_Init(&new_block);
     CALL_BF(BF_AllocateBlock(file_desc, new_block));
     dataNode* data = (dataNode *)BF_Block_GetData(new_block);
 
-    int count;
-    CALL_BF(BF_GetBlockCounter(file_desc ,&count));
+    CALL_BF(BF_GetBlockCounter(file_desc ,count));
 
-    int new_block_position = --count;
+    // new block will point to the one the old block pointed to
     data->next_data_block = node->next_data_block;
-    node->next_data_block = new_block_position;
+    // old block will point to the new one
+    node->next_data_block = --(*count);
 
+    // temporary array to help with record splitting
     Record record_array[6];
 
-    for(int i= 0 ; i < target; i++){
-    record_array[i] = node->rec_array[i];
+    for(int i = 0 ; i < target; i++)
+    {
+        record_array[i] = node->rec_array[i];
     }
     record_array[target] = *record;
-    for(int i = target + 1 ; i < 6 ; i++){
-    record_array[i] = node->rec_array[i-1];
+    for(int i = target + 1 ; i < 6 ; i++)
+    {
+        record_array[i] = node->rec_array[i-1];
     }
 
-    node->number_of_records = data->number_of_records = 3 ; 
+    node->number_of_records = data->number_of_records = 3 ;
 
-    for(int i = 0 ; i<3 ; i++){
-    node->rec_array[i] = record_array[i];
-    data->rec_array[i] = record_array[i+3];
+    for(int i = 0 ; i < 3 ; i++)
+    {
+        node->rec_array[i] = record_array[i];
+        data->rec_array[i] = record_array[i+3];
     }
 
-    int key_to_above = record_get_key(&metadata->schema, &record_array[3]);
+    block_routine(block, 1, 1, 1);
+    block_routine(new_block, 1, 1, 1);
 
-    block_routine(block , 1,1,1);
-    block_routine(new_block ,1,1,1);
+    // middle key (first of new data block) of the full array 
+    // will be pushed to higher level according to the algorithm
+    return record_get_key(&metadata->schema, &record_array[3]);
+
+}
+
+// this function inserts a record to a full data block and fixes the index level above
+// more detailed explanation in README :)
+int insert_in_full_data_block(const int file_desc, BPlusMeta *metadata, const Record *record , int* traceroute , BF_Block * block , int target)
+{
+    int count;
+    int key_to_above = split_data_block(file_desc, block, &count, record, target, metadata);
+    int new_block_position = count; // keep a copy of count (the new data block id), to return in the end
 
 
-    BF_Block * parent_block ; 
+    // now its the time to insert the right key from data level to index level and fix the tree
+    BF_Block * parent_block ;
     BF_Block_Init(&parent_block);
 
-    int parent_index ;
+    int parent_index;
     indexNode* parent;
 
-    for(int i = metadata->depth ; i > 0; i--)
+    // this loop with the help of traceroute will guid us from the last index level
+    // to the level that an index parent will be found that fits the key given to them
+    // or split the root and make the tree deeper
+    for(int i = metadata->depth ; i > 0; i--)  
     {
-    parent_index = traceroute[ i ];
-    CALL_BF(BF_GetBlock(file_desc, parent_index, parent_block));
-    parent = (indexNode *)BF_Block_GetData(parent_block);
+        // start from the end where the parent of the data block we reached is stored
+        parent_index = traceroute[i];
+        CALL_BF(BF_GetBlock(file_desc, parent_index, parent_block));
+        parent = (indexNode *)BF_Block_GetData(parent_block);
 
-    if(parent->pointer_counter == 64 ) // <---------------- change this 
-    {
-
-        if(i > 1){
-
-        int new_key_to_above = parent->pointer_key_array[parent->pointer_counter - 1];  // 63
-
-        BF_Block* new_index_block;
-
-        BF_Block_Init(&new_index_block);
-        CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
-        indexNode* new_index_block_node = (indexNode *)BF_Block_GetData(new_index_block);
-
-        int pointer_counter_of_old_index_block = parent->pointer_counter/2  ;  // 32
-
-        parent->pointer_counter = pointer_counter_of_old_index_block;
-
-        new_index_block_node->pointer_counter = pointer_counter_of_old_index_block ;
-
-        for( int i = 0; i < 63; i++)
+        if(parent->pointer_counter == metadata->pointers_per_block ) // if parent index block is full
         {
-            new_index_block_node->pointer_key_array[i] = parent->pointer_key_array[ i + 64 ];
-        }
 
+            // if we haven't reached insertion to the root
+            if(i > 1){
 
-        if ( key_to_above < new_key_to_above)
-        {
-            insert_in_index_block( parent , key_to_above , new_block_position);
+                key_to_above = split_index_block(file_desc, metadata, parent, key_to_above, new_block_position);
+                // keep the new value that has to be inserted to the parent index block and loop again
+                new_block_position++;
+
+                block_routine(parent_block, 1, 1, 0);
+
+            }
+            else // if we have to insert in full root
+            {
+                // similar procidure as before, with the difference that we make one extra new index 
+                // block, the root, and we increase the depth of the tree 
+
+                int new_key_for_new_root = split_index_block(file_desc, metadata, parent, key_to_above, new_block_position);
+
+                // make a new root and initialise it with on key and two pointers
+                // one to the old root and one to the new index block next to old root
+                CALL_BF(BF_AllocateBlock(file_desc, parent_block));
+                indexNode* new_root = (indexNode *)BF_Block_GetData(parent_block);
+                new_root->pointer_counter = 2;
+                new_root->pointer_key_array[0] = metadata->root_id;
+                new_root->pointer_key_array[1] = new_key_for_new_root;
+                new_root->pointer_key_array[2] = ++new_block_position; // blocks are alocated linearly so we have the block id
+                metadata->root_id = ++new_block_position;
+                metadata->depth++;
+
+                block_routine(parent_block, 1, 1, 1);
+
+            }
+
         }
         else
         {
-            insert_in_index_block(  new_index_block_node , key_to_above , new_block_position);
+            insert_in_index_block(parent, key_to_above, new_block_position);
+            block_routine(parent_block, 1, 1, 1);
+            break;
         }
-
-        key_to_above = new_key_to_above;
-        new_block_position++;
-
-        block_routine(parent_block, 1, 1, 0);
-        block_routine(new_index_block, 1, 1, 1);
-
-        }
-        else // if we have to insert in full root
-        {
-
-        int new_key_to_above = parent->pointer_key_array[parent->pointer_counter - 1];  // 63
-
-        BF_Block* new_index_block;
-
-        BF_Block_Init(&new_index_block);
-        CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
-        
-        indexNode* new_index_block_node = (indexNode *)BF_Block_GetData(new_index_block);
-
-        int pointer_counter_of_old_index_block = parent->pointer_counter/2  ;  // 32
-
-        parent->pointer_counter = pointer_counter_of_old_index_block; //32
-
-        new_index_block_node->pointer_counter = pointer_counter_of_old_index_block ; //32
-
-        for( int i = 0; i < 63; i++)
-        {
-            new_index_block_node->pointer_key_array[i] = parent->pointer_key_array[ i + 64 ];
-        }
-
-
-        if ( key_to_above < new_key_to_above )
-        {
-            insert_in_index_block( parent , key_to_above , new_block_position);
-        }
-        else
-        {
-            insert_in_index_block(  new_index_block_node , key_to_above , new_block_position);
-        }
-
-        block_routine(new_index_block, 1, 1, 0);
-
-        CALL_BF(BF_AllocateBlock(file_desc, new_index_block));
-        indexNode* new_root = (indexNode *)BF_Block_GetData(new_index_block);
-        new_root->pointer_counter = 2;
-        new_root->pointer_key_array[0] = metadata->root_id;
-        new_root->pointer_key_array[1] = new_key_to_above;
-        new_root->pointer_key_array[2] = ++new_block_position;
-        metadata->root_id = ++new_block_position;
-        metadata->depth++;
-
-        block_routine(parent_block, 1, 1, 1);
-        block_routine(new_index_block, 1, 1, 1);
-
-        }
-
-    }
-    else
-    {
-        insert_in_index_block(parent, key_to_above, new_block_position);
-        block_routine(parent_block, 1, 1, 1);
-        break;
-    }
 
 
     }

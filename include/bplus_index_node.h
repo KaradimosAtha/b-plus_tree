@@ -1,6 +1,7 @@
 #ifndef BP_INDEX_NODE_H
 #define BP_INDEX_NODE_H
 #include "bf.h"
+#include "bplus_file_structs.h"
 #define SIZE (BF_BLOCK_SIZE - sizeof(int)) / sizeof(int)
 
 /* Στο αντίστοιχο αρχείο .h μπορείτε να δηλώσετε τις συναρτήσεις
@@ -19,5 +20,6 @@ typedef struct bplus_index_node{
 void print_index_node(indexNode * node);
 void insert_in_index_block(indexNode *node, int key , int pointer);
 void insert_in_full_index_block(indexNode *node, int key, int pointer, int *new_block_pos);
+int split_index_block(int file_desc, BPlusMeta *metadata, indexNode *parent_node, int key, int new_block_position);
 
 #endif

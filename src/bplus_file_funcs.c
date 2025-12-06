@@ -85,7 +85,7 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
 
     // we keep a path from the root to the data block, in which we will insert the record to
     // if it does not exist, in the traceroute table. every cell, is a tree level
-    // and the value in it is the parent block from the previous level. last cell is the parent 
+    // and the value in it is the parent index block from the previous level. last cell is the parent 
     // of the data block we reached at etc...
     int traceroute[metadata->depth + 1];
     int root_index ,prev_index;
@@ -169,7 +169,7 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
       }
 
       // insert and return :)
-      insert_in_data_block(node , record, record_count);
+      insert_in_data_block(node, record, record_count);
       printf("Record inserted succesfully!\n");
 
       block_routine(block, 1, 1, 1);
