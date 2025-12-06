@@ -81,7 +81,9 @@ header->record_capacity_per_block = BF_BLOCK_SIZE/header->record_size;
 header->pointers_per_block = (BF_BLOCK_SIZE-sizeof(int))/(2 * sizeof(int)) + 1;
 header->keys_per_block = header->pointers_per_block -1;
 ```
-By convention , when our tree is empty we set the depth and root_id of our tree to -1. As per the last three parameters, they are block size dependent, but the above calculations fit out 512 byte block best. A different block size could require an alteration of the above values.
+By convention , when our tree is empty we set the depth and root_id of our tree to -1. Please do remember that the depth accounts only for the depth of the tree as per it's index blocks, it does not account for the data blocks.
+
+As per the last three parameters, they are block size dependent, but the above calculations fit out 512 byte block best. A different block size could require an alteration of the above values.
 ### bplus_open_file
 
 The actions performed in open file are pretty straightforward, but here are some key takeaways:
@@ -127,7 +129,80 @@ int bplus_close_file(const int file_desc, BPlusMeta* metadata)
 
 We retrieve the address of the metadata block that is pinned in memory and we insert into it the latest version of the metadata struct that has possibly been altered during the execution of other functions. After that, we finally handle the block using our block routine. 
 
+### bplus_record_find
+
+The process for finding the desired record splits into 2 main procedures
+  - Navigating through the indexNode tree towards the dataNode
+  - Selecting the correct Record from the dataNode
+  
+Let's go through the navigation of the index tree first
+
+```c
+  int root_index = metadata->root_id;
+  for (int depth = 0; depth < metadata->depth; depth++){
+
+    CALL_BF(BF_GetBlock(file_desc, root_index, block));
+    indexNode* node = (indexNode *)BF_Block_GetData(block);
+
+    // we search the stored keys in the block so they can guide as deeper towards the data level
+    int pointer_count = node->pointer_counter;
+    for (int block_index = 1; block_index < 2*pointer_count - 1; block_index += 2){
+
+      int curr_key = node->pointer_key_array[block_index];
+
+      if (key < curr_key){
+
+        root_index = node->pointer_key_array[block_index - 1];
+        break;
+                
+      } // if we reach last block
+      else if( (block_index == 2* pointer_count - 3) ||
+                (key < node->pointer_key_array[block_index + 2]) )
+      { 
+        root_index = node->pointer_key_array[block_index + 1];
+        break;
+      }
+
+    }
+    block_routine(block, 0, 1, 0);
+    // after examining the index tree at a certain depth we unpin 
+    // the index block at that depth since it is no longer need it
+  }
+```
+
+For each index block, starting from our root ofcourse, we traverse the key-pointer pairs to determine the next index block we will need to parse in the lower level. The id of the index block we are investigating each time is ```root_index ```.
+
+After getting the data of our current indexNode we parse its ```key_pointer_array``` starting from position ```1``` until ```2*pointer_count -1``` which is the end of the array with a step of ```2```. 
+- If the key of the array at the current index is larger than the key of the record we are searching for we should follow the left pointer so we update ```root_index = node->pointer_key_array[block_index - 1];```.
+- If the previous condition is not fullfilled we check if the record key is smaller than the next key in ```pointer_key_array[index+2]``` , if so we follow the right pointer and update ```root_index = node->pointer_key_array[block_index + 1];```. Please do notice the edge case condition we added in the second if which ensures that when we reach the last key of the ```pointer_key_array```, we always follow the right pointer and prevent a segfault by perfoming an invalid read on ```pointer_key_array```. 
+
+
+At the termination of that process ```root_index``` wil finally contain the block id of the dataNode we want.
+
+
+```c
+CALL_BF(BF_GetBlock(file_desc, root_index, block));
+dataNode* node = (dataNode *)BF_Block_GetData(block);
+
+int record_count = node->number_of_records;
+
+for(int i = 0 ; i < record_count; i++)
+{
+  if(record_get_key(&(metadata)->schema, &(node->rec_array[i])) == key)
+  {
+    **out_record = node->rec_array[i];
+    block_routine(block, 0, 1, 1);
+    return 0;
+  }
+}
+
+block_routine(block, 0, 1, 1);
+
+*out_record=NULL; // search failed
+```
+
+Now we just simply traverse the dataNode based on the number of records it is already containing and return the record if it actualyl exists inside the block.
 ### bplus_record_insert
 
-### bplus_record_find
+
 

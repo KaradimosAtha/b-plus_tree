@@ -222,15 +222,20 @@ int bplus_record_find(const int file_desc, const BPlusMeta *metadata, const int 
 
         root_index = node->pointer_key_array[block_index - 1];
         break;
-                // if we reach last block
-      }else if( (block_index == 2* pointer_count - 3) ||
-                (key < node->pointer_key_array[block_index + 2]) ){ 
+                
+      } // if we reach last block
+      else if( (block_index == 2* pointer_count - 3) ||
+                (key < node->pointer_key_array[block_index + 2]) )
+      { 
         root_index = node->pointer_key_array[block_index + 1];
         break;
       }
 
     }
     block_routine(block, 0, 1, 0);
+    // after examining the index tree at a certain depth we unpin 
+    // the index block at that depth since it is no longer need it
+
   }
 
   // after the iteration the root_index will point to the data block 
