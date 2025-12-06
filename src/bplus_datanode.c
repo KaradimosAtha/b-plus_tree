@@ -32,44 +32,79 @@ void insert_in_data_block(dataNode *node, const Record *record, int target)
 // initialises the root (index level) and two data blocks(data level)
 int first_insert_in_tree(int file_desc, BPlusMeta *metadata, const Record *record)
 {
-    // insert record on the left data block, initialise its values
+
     BF_Block *block;
     BF_Block_Init(&block);
-    CALL_BF(BF_AllocateBlock(file_desc, block));
-    dataNode* data_left = (dataNode *)BF_Block_GetData(block);
+    if( metadata->root_id == -1 )
+    {
+        CALL_BF(BF_AllocateBlock(file_desc, block));
+        dataNode* first_data = (dataNode *)BF_Block_GetData(block);
+        printf("Record inserted succesfully!\n");
+        first_data->rec_array[0] = *record;
+        first_data->number_of_records++;
+        metadata->root_id = 1;
+        block_routine(block, 1, 1, 1);
+        return 1;
+    }
+    else
+    {
+        CALL_BF(BF_GetBlock(file_desc, metadata->root_id, block));
+        dataNode* first_data = (dataNode *)BF_Block_GetData(block);
+        int pos_to_insert = -1;
+        int record_count = first_data->number_of_records;
+        for (int i = 0; i < record_count; i++)
+        {
 
-    data_left->number_of_records = 1;
-    data_left->next_data_block = 2;
-    data_left->rec_array[0] = *record;
+            // if record already exists, insertion failed return -1
+            if (record_get_key(&(metadata->schema), record) == record_get_key(&(metadata->schema), &(first_data->rec_array[i])))
+            {
+                printf("Already exists! Was not inserted.\n");
+                block_routine(block , 0 , 1 , 1);
+                return -1;
+            } 
+            else if (record_get_key(&(metadata->schema), record) < record_get_key(&(metadata->schema), &(first_data->rec_array[i])))
+            {
+                // the record has to take the place of the next one.
+                pos_to_insert = i;
+                break;
+            }
+        }
 
-    block_routine(block, 1, 1, 0);
+        if (pos_to_insert == -1) // there was no place found to insert between records, so insert in the end
+        {
 
+            // if the data block is full we have to split it and fix the tree
+            if(record_count == metadata->record_capacity_per_block)
+            {
+                return make_first_root(file_desc, metadata, record , block , record_count);
+            }
 
-    // initialise an empty data block on the right of the already existing one
-    CALL_BF(BF_AllocateBlock(file_desc, block));
-    dataNode* data_right = (dataNode *)BF_Block_GetData(block);
+            // insert and return :)
+            insert_in_data_block(first_data, record, record_count);
+            printf("Record inserted succesfully!\n");
 
-    data_right->number_of_records = 0;
-    data_right->next_data_block = -1;
+            block_routine(block, 1, 1, 1);
+            return 1;
 
-    block_routine(block, 1, 1, 0);
+        }
+        else // insert between records in given position
+        {
+            if(record_count == metadata->record_capacity_per_block)
+            {
+                return make_first_root(file_desc, metadata, record , block , pos_to_insert);
+            }
 
-    // also initialise the first root of the tree pointing to those two blocks
-    // and having as first key the first rec_id + 5 of the first record (check README for more)
-    CALL_BF(BF_AllocateBlock(file_desc, block));
-    indexNode* root = (indexNode *)BF_Block_GetData(block);
+            insert_in_data_block(first_data , record, pos_to_insert);
+            printf("Record inserted succesfully!\n");
 
-    root->pointer_counter = 2;
-    root->pointer_key_array[0] = 1;
-    root->pointer_key_array[1] = record_get_key(&(metadata->schema), record) + metadata->record_capacity_per_block;
-    root->pointer_key_array[2] = 2;
-    block_routine(block, 1, 1, 1);
+            block_routine(block, 1, 1, 1);
+            return 1;
+            
+        }
+    }
 
-    metadata->depth = 1;
-    metadata->root_id = 3;
 
     return 1;
-
 }
 
 // this helper function splits the (full) data block given, inserts the record and 

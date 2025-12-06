@@ -204,6 +204,30 @@ int bplus_record_find(const int file_desc, const BPlusMeta *metadata, const int 
   BF_Block *block;
   BF_Block_Init(&block);
 
+  if( metadata->depth == -1 )
+  {
+    CALL_BF(BF_GetBlock(file_desc, 1, block));
+    dataNode* node = (dataNode *)BF_Block_GetData(block);
+
+    int record_count = node->number_of_records;
+
+    for(int i = 0 ; i < record_count; i++)
+    {
+      if(record_get_key(&(metadata)->schema, &(node->rec_array[i])) == key)
+      {
+        **out_record = node->rec_array[i];
+        block_routine(block, 0, 1, 1);
+        return 0;
+      }
+    }
+
+    block_routine(block, 0, 1, 1);
+
+    *out_record=NULL; // search failed
+    return -1;
+
+  }
+
   // the iteration in the tree begins from the root and continues
   // to its children, roots of smaller subtrees.
   int root_index = metadata->root_id;

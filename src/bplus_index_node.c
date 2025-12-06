@@ -1,6 +1,7 @@
 // Μπορείτε να προσθέσετε εδώ βοηθητικές συναρτήσεις για την επεξεργασία Κόμβων Δεδομένων.
 #include "bplus_index_node.h"
 #include "bplus_file_structs.h"
+#include "bplus_datanode.h"
 #include <stdio.h>
 
 void print_index_node(indexNode * node)
@@ -97,4 +98,63 @@ int split_index_block(int file_desc, BPlusMeta *metadata, indexNode *parent_node
 
     return new_key_to_above;
 
+}
+
+int make_first_root(int file_desc, BPlusMeta * metadata, const Record* record , BF_Block* block , int target)
+{
+
+    dataNode *node = (dataNode *)BF_Block_GetData(block);
+
+    BF_Block *new_block ;
+    BF_Block_Init(&new_block);
+    CALL_BF(BF_AllocateBlock(file_desc, new_block));
+    dataNode* data = (dataNode *)BF_Block_GetData(new_block);
+
+    // new block will point to the one the old block pointed to
+    data->next_data_block = -1;
+    // old block will point to the new one
+    node->next_data_block = 2 ;
+
+    // temporary array to help with record splitting
+    Record record_array[ metadata->record_capacity_per_block + 1 ];
+
+    for(int i = 0 ; i < target; i++)
+    {
+        record_array[i] = node->rec_array[i];
+    }
+    record_array[target] = *record;
+    for(int i = target + 1 ; i < 6 ; i++)
+    {
+        record_array[i] = node->rec_array[i-1];
+    }
+
+    node->number_of_records = data->number_of_records = 3 ;
+
+    for(int i = 0 ; i < 3 ; i++)
+    {
+        node->rec_array[i] = record_array[i];
+        data->rec_array[i] = record_array[i+3];
+    }
+
+    block_routine(block, 1, 1, 1);
+    block_routine(new_block, 1, 1, 1);
+
+    BF_Block *new_root ;
+    BF_Block_Init(&new_root);
+    CALL_BF(BF_AllocateBlock(file_desc, new_root));
+    indexNode* root_data = (indexNode *)BF_Block_GetData(new_root);
+    
+
+    root_data->pointer_counter = 2;
+    root_data->pointer_key_array[0] = 1;
+    root_data->pointer_key_array[1] = record_get_key(&metadata->schema, &record_array[3]);
+    root_data->pointer_key_array[2] = 2;
+
+    metadata->root_id = 3;
+    metadata->depth = 1;
+
+    // middle key (first of new data block) of the full array 
+    // will be pushed to higher level according to the algorithm
+    // printf("Record inserted succesfully!\n");
+    return record_get_key(&metadata->schema, &record_array[3]);
 }
