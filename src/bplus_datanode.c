@@ -28,20 +28,24 @@ void insert_in_data_block(dataNode *node, const Record *record, int target)
     node->number_of_records++;
 }
 
+// this function initialises the B+ tree and inserts the first record in it
+// initialises the root (index level) and two data blocks(data level)
 int first_insert_in_tree(int file_desc, BPlusMeta *metadata, const Record *record)
 {
+    // insert record on the left data block, initialise its values
     BF_Block *block;
     BF_Block_Init(&block);
     CALL_BF(BF_AllocateBlock(file_desc, block));
     dataNode* data_left = (dataNode *)BF_Block_GetData(block);
 
-
     data_left->number_of_records = 1;
     data_left->next_data_block = 2;
     data_left->rec_array[0] = *record;
 
-    block_routine(block , 1 , 1, 0);
+    block_routine(block, 1, 1, 0);
 
+
+    // initialise an empty data block on the right of the already existing one
     CALL_BF(BF_AllocateBlock(file_desc, block));
     dataNode* data_right = (dataNode *)BF_Block_GetData(block);
 
@@ -50,6 +54,8 @@ int first_insert_in_tree(int file_desc, BPlusMeta *metadata, const Record *recor
 
     block_routine(block, 1, 1, 0);
 
+    // also initialise the first root of the tree pointing to those two blocks
+    // and having as first key the first rec_id + 5 of the first record (check README for more)
     CALL_BF(BF_AllocateBlock(file_desc, block));
     indexNode* root = (indexNode *)BF_Block_GetData(block);
 
@@ -57,11 +63,10 @@ int first_insert_in_tree(int file_desc, BPlusMeta *metadata, const Record *recor
     root->pointer_key_array[0] = 1;
     root->pointer_key_array[1] = record_get_key(&(metadata->schema), record) + metadata->record_capacity_per_block;
     root->pointer_key_array[2] = 2;
-    block_routine(block  , 1 , 0 , 1);
+    block_routine(block, 1, 1, 1);
 
     metadata->depth = 1;
     metadata->root_id = 3;
-    block_routine(block, 1, 0, 0);
 
     return 1;
 
