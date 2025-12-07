@@ -41,7 +41,7 @@ int first_insert_in_tree(int file_desc, BPlusMeta *metadata, const Record *recor
         dataNode* first_data = (dataNode *)BF_Block_GetData(block);
         printf("Record inserted succesfully!\n");
         first_data->rec_array[0] = *record;
-        first_data->number_of_records++;
+        first_data->number_of_records = 1;
         metadata->root_id = 1;
         block_routine(block, 1, 1, 1);
         return 1;
@@ -215,7 +215,6 @@ int insert_in_full_data_block(const int file_desc, BPlusMeta *metadata, const Re
                 block_routine(parent_block, 1, 1, 1);
 
             }
-
         }
         else
         {
@@ -223,7 +222,6 @@ int insert_in_full_data_block(const int file_desc, BPlusMeta *metadata, const Re
             block_routine(parent_block, 1, 1, 1);
             break;
         }
-
 
     }
     return count;

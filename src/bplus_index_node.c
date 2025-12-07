@@ -123,7 +123,7 @@ int make_first_root(int file_desc, BPlusMeta * metadata, const Record* record , 
         record_array[i] = node->rec_array[i];
     }
     record_array[target] = *record;
-    for(int i = target + 1 ; i < 6 ; i++)
+    for(int i = target + 1 ; i < metadata->record_capacity_per_block + 1  ; i++)
     {
         record_array[i] = node->rec_array[i-1];
     }
@@ -153,8 +153,9 @@ int make_first_root(int file_desc, BPlusMeta * metadata, const Record* record , 
     metadata->root_id = 3;
     metadata->depth = 1;
 
-    // middle key (first of new data block) of the full array 
-    // will be pushed to higher level according to the algorithm
-    // printf("Record inserted succesfully!\n");
-    return record_get_key(&metadata->schema, &record_array[3]);
+    if( target < 3 )
+    {
+        return 1;
+    }
+    return 2;
 }

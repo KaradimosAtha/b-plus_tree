@@ -118,7 +118,7 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
         }else if( (block_index == 2*pointer_count - 3) ||
                   (record_get_key(&metadata->schema, record) < node->pointer_key_array[block_index + 2]) ){ 
           root_index = node->pointer_key_array[block_index + 1];
-          break;  // check for segfault <-------------------
+          break;  
         }
 
       }
@@ -128,7 +128,7 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
     }
     // parent of root does not exist
     traceroute[0] = -1;
-    traceroute[metadata->depth] = prev_index; // <-----------------------------------
+    traceroute[metadata->depth] = prev_index; 
 
     // thats the only block that could contain the record
     // that has to be inserted (so it wont be inserted)
