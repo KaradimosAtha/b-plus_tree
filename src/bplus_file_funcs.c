@@ -177,9 +177,17 @@ int bplus_record_insert(const int file_desc, BPlusMeta *metadata, const Record *
     }
     else // insert between records in given position
     {
-      if(record_count == metadata->record_capacity_per_block)
+      if(record_count == metadata->record_capacity_per_block )
       {
-        return insert_in_full_data_block(file_desc, metadata, record , traceroute , block , pos_to_insert);
+        if(pos_to_insert < 3)
+        {
+          insert_in_full_data_block(file_desc, metadata, record , traceroute , block , pos_to_insert);
+          return root_index;
+        }
+        else
+        {
+          return insert_in_full_data_block(file_desc, metadata, record , traceroute , block , pos_to_insert);
+        }
       }
 
       insert_in_data_block(node , record, pos_to_insert);
